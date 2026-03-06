@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# pdfjs worker (copied from node_modules by postinstall)
+/public/pdf.worker.min.mjs
+
