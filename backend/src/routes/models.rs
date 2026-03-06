@@ -1,11 +1,17 @@
 use axum::{extract::State, response::IntoResponse, Json};
+use serde::Deserialize;
 use serde_json::json;
 
-use crate::{error::AppError, AppState};
+use crate::{
+    error::AppError,
+    registry::RegisteredModel,
+    AppState,
+};
 
 /// GET /v1/models
 ///
-/// Returns a list of available AI models, sourced from configured providers.
+/// Returns the union of statically configured models (from API keys) and any
+/// dynamically registered models from the runtime registry.
 pub async fn list_models(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let mut models = Vec::new();
 
@@ -31,9 +37,65 @@ pub async fn list_models(State(state): State<AppState>) -> Result<impl IntoRespo
     // Always include a local/mock model for testing without API keys
     models.push(build_model("cortex-echo", "local", "Cortex Echo (demo)"));
 
+    // Dynamically registered models from the registry
+    for m in state.registry.list_registered_models() {
+        models.push(json!({
+            "id": m.name,
+            "object": "model",
+            "created": 1_700_000_000u64,
+            "owned_by": m.provider,
+            "display_name": m.description.unwrap_or_else(|| m.provider.clone()),
+        }));
+    }
+
     Ok(Json(json!({
         "object": "list",
         "data": models,
+    })))
+}
+
+// ─── Register model ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterModelRequest {
+    pub name: String,
+    pub provider: String,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+    pub description: Option<String>,
+}
+
+/// POST /v1/models/register
+///
+/// Dynamically register a new model at runtime without restarting the server.
+/// Supports providers: openai, anthropic, ollama, custom.
+pub async fn register_model(
+    State(state): State<AppState>,
+    Json(req): Json<RegisterModelRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if req.name.is_empty() {
+        return Err(AppError::BadRequest("Model name is required".into()));
+    }
+    if req.provider.is_empty() {
+        return Err(AppError::BadRequest("Provider is required".into()));
+    }
+
+    let model = RegisteredModel {
+        name: req.name.clone(),
+        provider: req.provider.clone(),
+        endpoint: req.endpoint,
+        api_key: req.api_key,
+        description: req.description,
+    };
+
+    state.registry.register_model(model);
+
+    tracing::info!(model = %req.name, provider = %req.provider, "Model registered");
+
+    Ok(Json(json!({
+        "status": "registered",
+        "name": req.name,
+        "provider": req.provider,
     })))
 }
 
