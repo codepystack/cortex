@@ -172,9 +172,11 @@ async fn execute_node(
                 .get_tool(tool_name)
                 .ok_or_else(|| AppError::NotFound(format!("Tool '{}' not found", tool_name)))?;
 
-            // For the echo tool, inject state value as message
-            if tool_name == "echo" {
-                args["message"] = serde_json::json!(state_value);
+            // Inject current pipeline state into the argument field specified by
+            // "input_arg" in the node config (defaults to "message" if unset).
+            let input_arg = node.config["input_arg"].as_str().unwrap_or("message");
+            if args[input_arg].is_null() {
+                args[input_arg] = serde_json::json!(state_value);
             }
 
             let result =

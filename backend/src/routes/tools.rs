@@ -114,8 +114,13 @@ pub(crate) async fn execute_tool_internal(
     }
 }
 
-/// Very simple integer/float arithmetic evaluator for the calculator tool.
-/// Supports: +, -, *, / with basic left-to-right precedence (no parentheses).
+/// Very simple left-to-right arithmetic evaluator for the calculator tool.
+///
+/// Supports binary operators: +, -, *, /
+///
+/// **Note:** Evaluation is strictly left-to-right with no operator precedence.
+/// For example, "2 + 3 * 4" evaluates to 20 (not 14).
+/// Tokens must be separated by whitespace: "2 + 3" not "2+3".
 fn eval_arithmetic(expr: &str) -> Result<f64, AppError> {
     let tokens: Vec<&str> = expr.split_whitespace().collect();
     if tokens.is_empty() {
