@@ -1,9 +1,10 @@
 # Rust build artifacts
 backend/target/
 
-# Node / Next.js
+# Node / SvelteKit
 frontend/node_modules/
-frontend/.next/
+frontend/.svelte-kit/
+frontend/build/
 frontend/.env.local
 
 # Environment secrets
