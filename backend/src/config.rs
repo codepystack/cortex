@@ -7,6 +7,8 @@ pub struct Config {
     pub jwt_secret: String,
     pub openai_api_key: Option<String>,
     pub anthropic_api_key: Option<String>,
+    /// Base URL for a local Ollama instance (default: http://localhost:11434).
+    pub ollama_base_url: String,
     pub cors_origins: Vec<String>,
 }
 
@@ -30,6 +32,8 @@ impl Config {
                 .unwrap_or_else(|_| "cortex-dev-secret-change-in-production".to_string()),
             openai_api_key: env::var("OPENAI_API_KEY").ok(),
             anthropic_api_key: env::var("ANTHROPIC_API_KEY").ok(),
+            ollama_base_url: env::var("OLLAMA_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:11434".to_string()),
             cors_origins,
         }
     }

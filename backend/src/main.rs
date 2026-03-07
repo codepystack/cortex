@@ -18,10 +18,12 @@ mod auth;
 mod config;
 mod error;
 mod models;
+mod registry;
 mod routes;
 
 use auth::User;
 use config::Config;
+use registry::Registry;
 
 // ─── Application state ───────────────────────────────────────────────────────
 
@@ -31,6 +33,8 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     /// Simple in-memory user store – swap for a real DB in production.
     pub user_store: Arc<Mutex<Vec<User>>>,
+    /// Central resource registry (models, tools, agents, workflows, MCP, memory).
+    pub registry: Registry,
 }
 
 impl AppState {
@@ -42,6 +46,7 @@ impl AppState {
                 .build()
                 .expect("Failed to build HTTP client"),
             user_store: Arc::new(Mutex::new(Vec::new())),
+            registry: Registry::new(),
         }
     }
 }
@@ -57,12 +62,30 @@ fn build_router(state: AppState) -> Router {
     Router::new()
         // Health
         .route("/health", get(routes::health::health_check))
-        // AI routes
+        // AI / chat routes
         .route("/v1/models", get(routes::models::list_models))
+        .route("/v1/models/register", post(routes::models::register_model))
         .route(
             "/v1/chat/completions",
             post(routes::chat::chat_completions),
         )
+        // Tools
+        .route("/v1/tools", get(routes::tools::list_tools))
+        .route("/v1/tools/run", post(routes::tools::run_tool))
+        // Agents
+        .route("/v1/agents", get(routes::agents::list_agents))
+        .route("/v1/agents/register", post(routes::agents::register_agent))
+        .route("/v1/agents/run", post(routes::agents::run_agent))
+        // Workflows
+        .route("/v1/workflows", get(routes::workflows::list_workflows))
+        .route(
+            "/v1/workflows/register",
+            post(routes::workflows::register_workflow),
+        )
+        .route("/v1/workflow/run", post(routes::workflows::run_workflow))
+        // MCP
+        .route("/v1/mcp", get(routes::mcp::list_mcp_servers))
+        .route("/v1/mcp/register", post(routes::mcp::register_mcp_server))
         // Auth routes
         .route("/v1/auth/register", post(routes::auth::register))
         .route("/v1/auth/login", post(routes::auth::login))
@@ -224,5 +247,229 @@ mod tests {
             .json(&json!({"email": "u@example.com", "password": "wrong-password"}))
             .await;
         resp.assert_status_unauthorized();
+    }
+
+    // ── New platform tests ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn register_model_and_appears_in_list() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/models/register")
+            .json(&json!({
+                "name": "my-ollama",
+                "provider": "ollama",
+                "endpoint": "http://localhost:11434",
+                "description": "Local Llama model"
+            }))
+            .await;
+        resp.assert_status_ok();
+
+        let list = server.get("/v1/models").await;
+        list.assert_status_ok();
+        let body: serde_json::Value = list.json();
+        let ids: Vec<&str> = body["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["id"].as_str().unwrap())
+            .collect();
+        assert!(ids.contains(&"my-ollama"));
+    }
+
+    #[tokio::test]
+    async fn list_tools_returns_builtins() {
+        let server = test_server();
+        let resp = server.get("/v1/tools").await;
+        resp.assert_status_ok();
+        let body: serde_json::Value = resp.json();
+        let names: Vec<&str> = body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"echo"));
+        assert!(names.contains(&"calculator"));
+        assert!(names.contains(&"http_request"));
+    }
+
+    #[tokio::test]
+    async fn run_echo_tool() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/tools/run")
+            .json(&json!({
+                "tool": "echo",
+                "args": { "message": "ping" }
+            }))
+            .await;
+        resp.assert_status_ok();
+        let body: serde_json::Value = resp.json();
+        assert_eq!(body["output"]["message"], "ping");
+    }
+
+    #[tokio::test]
+    async fn run_unknown_tool_is_not_found() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/tools/run")
+            .json(&json!({
+                "tool": "nonexistent_tool",
+                "args": {}
+            }))
+            .await;
+        resp.assert_status_not_found();
+    }
+
+    #[tokio::test]
+    async fn register_agent_and_list() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/agents/register")
+            .json(&json!({
+                "name": "test-agent",
+                "description": "A test agent",
+                "model": "cortex-echo",
+                "tools": ["echo"],
+                "system_prompt": "You are a helpful assistant."
+            }))
+            .await;
+        resp.assert_status_ok();
+
+        let list = server.get("/v1/agents").await;
+        list.assert_status_ok();
+        let body: serde_json::Value = list.json();
+        let names: Vec<&str> = body["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"test-agent"));
+    }
+
+    #[tokio::test]
+    async fn run_agent_with_echo_model() {
+        let server = test_server();
+
+        // Register agent first
+        server
+            .post("/v1/agents/register")
+            .json(&json!({
+                "name": "echo-agent",
+                "description": "Echo agent",
+                "model": "cortex-echo",
+                "tools": [],
+                "system_prompt": null
+            }))
+            .await;
+
+        let resp = server
+            .post("/v1/agents/run")
+            .json(&json!({
+                "agent": "echo-agent",
+                "input": "Hello from agent test"
+            }))
+            .await;
+        resp.assert_status_ok();
+        let body: serde_json::Value = resp.json();
+        assert!(body["output"].is_string());
+    }
+
+    #[tokio::test]
+    async fn register_workflow_and_list() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/workflows/register")
+            .json(&json!({
+                "name": "simple-pipeline",
+                "description": "A simple test workflow",
+                "nodes": [
+                    { "id": "n1", "kind": "input", "config": {} },
+                    { "id": "n2", "kind": "llm", "config": { "model": "cortex-echo" } },
+                    { "id": "n3", "kind": "output", "config": {} }
+                ]
+            }))
+            .await;
+        resp.assert_status_ok();
+
+        let list = server.get("/v1/workflows").await;
+        list.assert_status_ok();
+        let body: serde_json::Value = list.json();
+        let names: Vec<&str> = body["workflows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"simple-pipeline"));
+    }
+
+    #[tokio::test]
+    async fn run_workflow() {
+        let server = test_server();
+
+        // Register first
+        server
+            .post("/v1/workflows/register")
+            .json(&json!({
+                "name": "echo-workflow",
+                "description": "Workflow that echoes input",
+                "nodes": [
+                    { "id": "n1", "kind": "input", "config": {} },
+                    { "id": "n2", "kind": "llm", "config": { "model": "cortex-echo" } },
+                    { "id": "n3", "kind": "output", "config": {} }
+                ]
+            }))
+            .await;
+
+        let resp = server
+            .post("/v1/workflow/run")
+            .json(&json!({
+                "workflow": "echo-workflow",
+                "input": "Workflow test input"
+            }))
+            .await;
+        resp.assert_status_ok();
+        let body: serde_json::Value = resp.json();
+        assert!(body["output"].is_string());
+    }
+
+    #[tokio::test]
+    async fn register_mcp_server_and_list() {
+        let server = test_server();
+        let resp = server
+            .post("/v1/mcp/register")
+            .json(&json!({
+                "name": "github-mcp",
+                "url": "http://localhost:3100",
+                "description": "GitHub MCP server",
+                "tools": ["github_search", "github_read_file"]
+            }))
+            .await;
+        resp.assert_status_ok();
+
+        let list = server.get("/v1/mcp").await;
+        list.assert_status_ok();
+        let body: serde_json::Value = list.json();
+        let names: Vec<&str> = body["servers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"github-mcp"));
+
+        // Tools from MCP should now appear in the tool list
+        let tools = server.get("/v1/tools").await;
+        let tools_body: serde_json::Value = tools.json();
+        let tool_names: Vec<&str> = tools_body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(tool_names.contains(&"github_search"));
     }
 }

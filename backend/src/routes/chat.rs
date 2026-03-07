@@ -147,11 +147,11 @@ async fn stream_chat(
 
 // ─── Provider dispatch ───────────────────────────────────────────────────────
 
-async fn dispatch_to_provider(
+pub(crate) async fn dispatch_to_provider(
     state: &AppState,
     req: &ChatRequest,
 ) -> Result<String, AppError> {
-    // Determine provider from model name
+    // 1. Check statically configured providers by model name prefix.
     if req.model.starts_with("gpt-") || req.model.starts_with("o1") {
         if let Some(key) = &state.config.openai_api_key {
             return call_openai(&state.http_client, key, req).await;
@@ -170,9 +170,14 @@ async fn dispatch_to_provider(
         ));
     }
 
-    // Local echo model for demos
+    // 2. Local echo model for demos.
     if req.model == "cortex-echo" {
         return Ok(echo_response(req));
+    }
+
+    // 3. Check dynamically registered models in the registry.
+    if let Some(registered) = state.registry.get_model(&req.model) {
+        return dispatch_registered_model(state, &registered, req).await;
     }
 
     Err(AppError::NotFound(format!(
@@ -181,11 +186,68 @@ async fn dispatch_to_provider(
     )))
 }
 
+/// Dispatch a request to a dynamically registered model.
+async fn dispatch_registered_model(
+    state: &AppState,
+    model: &crate::registry::RegisteredModel,
+    req: &ChatRequest,
+) -> Result<String, AppError> {
+    match model.provider.as_str() {
+        "openai" => {
+            let key = model
+                .api_key
+                .as_deref()
+                .or(state.config.openai_api_key.as_deref())
+                .ok_or_else(|| AppError::BadRequest("OpenAI API key not configured".into()))?;
+            let endpoint = model
+                .endpoint
+                .as_deref()
+                .unwrap_or("https://api.openai.com/v1/chat/completions");
+            call_openai_endpoint(&state.http_client, key, endpoint, req).await
+        }
+        "anthropic" => {
+            let key = model
+                .api_key
+                .as_deref()
+                .or(state.config.anthropic_api_key.as_deref())
+                .ok_or_else(|| AppError::BadRequest("Anthropic API key not configured".into()))?;
+            call_anthropic(&state.http_client, key, req).await
+        }
+        "ollama" => {
+            let base = model
+                .endpoint
+                .as_deref()
+                .unwrap_or(&state.config.ollama_base_url);
+            let endpoint = format!("{}/api/chat", base);
+            call_ollama(&state.http_client, &endpoint, req).await
+        }
+        other => Err(AppError::BadRequest(format!(
+            "Unknown provider '{}' for registered model '{}'",
+            other, model.name
+        ))),
+    }
+}
+
 // ─── OpenAI proxy ────────────────────────────────────────────────────────────
 
 async fn call_openai(
     client: &reqwest::Client,
     api_key: &str,
+    req: &ChatRequest,
+) -> Result<String, AppError> {
+    call_openai_endpoint(
+        client,
+        api_key,
+        "https://api.openai.com/v1/chat/completions",
+        req,
+    )
+    .await
+}
+
+async fn call_openai_endpoint(
+    client: &reqwest::Client,
+    api_key: &str,
+    endpoint: &str,
     req: &ChatRequest,
 ) -> Result<String, AppError> {
     let body = json!({
@@ -197,7 +259,7 @@ async fn call_openai(
     });
 
     let resp = client
-        .post("https://api.openai.com/v1/chat/completions")
+        .post(endpoint)
         .bearer_auth(api_key)
         .json(&body)
         .send()
@@ -278,6 +340,58 @@ async fn call_anthropic(
         .map_err(|e| AppError::ProviderError(e.to_string()))?;
 
     Ok(value["content"][0]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string())
+}
+
+// ─── Ollama proxy ─────────────────────────────────────────────────────────────
+
+async fn call_ollama(
+    client: &reqwest::Client,
+    endpoint: &str,
+    req: &ChatRequest,
+) -> Result<String, AppError> {
+    let messages: Vec<serde_json::Value> = req
+        .messages
+        .iter()
+        .map(|m| {
+            json!({
+                "role": match m.role {
+                    Role::System => "system",
+                    Role::User => "user",
+                    Role::Assistant => "assistant",
+                    Role::Tool => "tool",
+                },
+                "content": m.content,
+            })
+        })
+        .collect();
+
+    let body = json!({
+        "model": req.model,
+        "messages": messages,
+        "stream": false,
+    });
+
+    let resp = client
+        .post(endpoint)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::ProviderError(e.to_string()))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(AppError::ProviderError(format!("Ollama error: {text}")));
+    }
+
+    let value: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::ProviderError(e.to_string()))?;
+
+    Ok(value["message"]["content"]
         .as_str()
         .unwrap_or("")
         .to_string())
