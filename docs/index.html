@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cortex – Open AI Platform</title>
+  <meta name="description" content="Cortex is an open-source AI platform built with a Rust/Axum backend and a SvelteKit frontend." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f11;
+      --surface: #18181c;
+      --border: #2a2a33;
+      --accent: #7c6af7;
+      --accent-light: #a89cf8;
+      --text: #e8e8f0;
+      --muted: #9090a8;
+      --code-bg: #1e1e28;
+      --radius: 10px;
+      --max-w: 900px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 5rem 1.5rem 3rem;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124,106,247,.18) 0%, transparent 70%);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(124,106,247,.15);
+      border: 1px solid rgba(124,106,247,.35);
+      color: var(--accent-light);
+      font-size: .75rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border-radius: 50px;
+      padding: .25rem .85rem;
+      margin-bottom: 1.25rem;
+    }
+
+    header h1 {
+      font-size: clamp(2.2rem, 6vw, 3.6rem);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      background: linear-gradient(135deg, #fff 40%, var(--accent-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p.tagline {
+      margin-top: .75rem;
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin-inline: auto;
+    }
+
+    .cta-row {
+      margin-top: 2rem;
+      display: flex;
+      gap: .75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .65rem 1.5rem;
+      border-radius: var(--radius);
+      font-size: .95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: filter .15s, transform .1s;
+    }
+    .btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Main ── */
+    main {
+      max-width: var(--max-w);
+      margin-inline: auto;
+      padding: 3rem 1.5rem 5rem;
+    }
+
+    section + section { margin-top: 3.5rem; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      color: #fff;
+    }
+
+    /* ── Feature grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.4rem;
+    }
+
+    .card-icon {
+      font-size: 1.6rem;
+      margin-bottom: .5rem;
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: .3rem;
+    }
+
+    .card p {
+      font-size: .875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Code block ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      font-size: .875rem;
+      line-height: 1.75;
+    }
+
+    code {
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      color: var(--accent-light);
+    }
+
+    pre code { color: var(--text); }
+
+    /* ── Stack badges ── */
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem;
+      margin-top: .5rem;
+    }
+
+    .tag {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: .25rem .9rem;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: .85rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--accent-light); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">Open Source</div>
+  <h1>Cortex</h1>
+  <p class="tagline">An open AI platform with a blazing-fast Rust backend and a modern SvelteKit interface.</p>
+  <div class="cta-row">
+    <a href="https://github.com/codepystack/cortex" class="btn btn-primary">
+      ⭐ View on GitHub
+    </a>
+    <a href="https://github.com/codepystack/cortex/blob/main/CONTRIBUTING.md" class="btn btn-secondary">
+      🤝 Contribute
+    </a>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-icon">🦀</div>
+        <h3>Rust / Axum Backend</h3>
+        <p>High-performance, memory-safe REST API with JWT authentication and streaming support.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>SvelteKit Frontend</h3>
+        <p>Reactive UI built with SvelteKit and Tailwind CSS — fast by default.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔌</div>
+        <h3>OpenAI-Compatible API</h3>
+        <p>Drop-in replacement endpoint for chat completions with streaming (SSE).</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <h3>Multi-Provider Models</h3>
+        <p>Works with OpenAI, Anthropic, and a built-in <code>cortex-echo</code> demo model.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔑</div>
+        <h3>Auth &amp; JWT</h3>
+        <p>Register/login flow with secure JWT-based session management.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🛠️</div>
+        <h3>Agents &amp; Tools</h3>
+        <p>Extensible registry for models, agents, tools, workflows, and MCP servers.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Quick Start</h2>
+    <pre><code># 1. Clone the repo
+git clone https://github.com/codepystack/cortex.git
+cd cortex
+
+# 2. Start the backend
+cd backend
+cp .env.example .env   # add your API keys (optional)
+cargo run              # → http://localhost:8080
+
+# 3. Start the frontend (in a new terminal)
+cd frontend
+npm install
+npm run dev            # → http://localhost:3000</code></pre>
+  </section>
+
+  <section>
+    <h2>Tech Stack</h2>
+    <div class="stack">
+      <span class="tag">Rust 1.78+</span>
+      <span class="tag">Axum 0.8</span>
+      <span class="tag">Tokio</span>
+      <span class="tag">SvelteKit 2</span>
+      <span class="tag">Svelte 5</span>
+      <span class="tag">Tailwind CSS 4</span>
+      <span class="tag">TypeScript</span>
+      <span class="tag">JWT</span>
+      <span class="tag">SSE Streaming</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Contributing</h2>
+    <p style="color: var(--muted);">
+      Cortex is open to contributions! Whether it's a bug fix, a new feature, or an improvement to the docs — all help is welcome.
+      Read the <a href="https://github.com/codepystack/cortex/blob/main/CONTRIBUTING.md" style="color: var(--accent-light); text-decoration: none;">Contributing Guide</a>
+      to get started.
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <p>Released under the <a href="https://github.com/codepystack/cortex/blob/main/LICENSE">MIT License</a> &middot;
+  <a href="https://github.com/codepystack/cortex">GitHub</a> &middot;
+  Built with ❤️ by the Cortex contributors</p>
+</footer>
+
+</body>
+</html>
