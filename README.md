@@ -1,13 +1,19 @@
 # Cortex AI Platform
 
-An open AI platform built with a **Rust/Axum backend** and a **Next.js frontend**.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+An open-source AI platform built with a **Rust/Axum backend** and a **SvelteKit frontend**.
+
+> 🌐 **Website**: [codepystack.github.io/cortex](https://codepystack.github.io/cortex)  
+> 🤝 **Contributing**: see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Architecture
 
 ```
 cortex/
 ├── backend/   # Rust + Axum REST API
-└── frontend/  # Next.js 16 + Tailwind CSS chat UI
+└── frontend/  # SvelteKit + Tailwind CSS chat UI
 ```
 
 ## Screenshots
@@ -71,14 +77,13 @@ cargo test
 
 ---
 
-## Frontend (Next.js / Tailwind)
+## Frontend (SvelteKit / Tailwind)
 
 ### Getting started
 
 ```bash
 cd frontend
-cp .env.local.example .env.local
-# Edit .env.local to point at your backend
+echo "VITE_API_URL=http://localhost:8080" > .env
 npm install
 npm run dev
 # UI available at http://localhost:3000
@@ -88,7 +93,7 @@ npm run dev
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend base URL |
+| `VITE_API_URL` | `http://localhost:8080` | Backend base URL |
 
 ### Features
 
@@ -98,3 +103,13 @@ npm run dev
 - **Markdown rendering** — assistant messages rendered with `react-markdown` + GFM
 - **Dark mode** — Tailwind `dark:` classes, follows OS preference
 - **Responsive** — works on mobile and desktop
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started, report bugs, suggest features, and submit pull requests.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

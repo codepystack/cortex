@@ -3,6 +3,7 @@ name = "cortex-backend"
 version = "0.1.0"
 edition = "2021"
 description = "Cortex AI Platform – Rust/Axum backend"
+license = "MIT"
 
 [[bin]]
 name = "cortex-backend"
